@@ -14,6 +14,7 @@
 
 # Mira implementation
 import util
+from util import Counter
 PRINT = True
 
 class MiraClassifier:
@@ -60,8 +61,40 @@ class MiraClassifier:
         datum is a counter from features to values for those features
         representing a vector of values.
         """
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        # try out different C and use the one that has the best guess comparing to the validation Data && Labels
+        original_weight = self.weights.copy()
+        best_weight = self.weights;
+        best_score = float("-inf")
+        for C in Cgrid:
+            # Need to use initial weights everytime we have a new C
+            self.weights = original_weight.copy()
+
+            for iteration in range(self.max_iterations):
+                print "Starting iteration ", iteration, "..."
+                for i in range(len(trainingData)):
+                    actual = trainingLabels[i]
+                    guess_label = self.classify([trainingData[i]])[0]
+
+                    if guess_label != actual:
+                        tau = min(C, ((self.weights[guess_label] - self.weights[actual]) * trainingData[i] + 1.0) / (2 * (trainingData[i] * trainingData[i]) ) )
+                        f = Counter({k: tau * v for k, v in trainingData[i].copy().items()})
+                        self.weights[actual] = self.weights[actual] + f
+                        self.weights[guess_label] = self.weights[guess_label] - f
+
+            # check the validation data
+            cur_correct_validation = 0
+            for i in range(len(validationData)):
+                now_prediction = self.classify(validationData[i])[0]
+                if now_prediction == validationLabels[i]:
+                    cur_correct_validation += 1
+
+            # if our weight under this tau has better performance, update the best weight to this weight !!
+            if cur_correct_validation > best_score:
+                best_weight = self.weights
+                best_score = cur_correct_validation
+
+        # After training, keep my weight to be the best one
+        self.weights = best_weight
 
     def classify(self, data ):
         """

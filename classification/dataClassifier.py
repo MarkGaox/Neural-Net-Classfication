@@ -23,7 +23,7 @@ import mira
 import samples
 import sys
 import util
-from pacman import GameState
+from pacman import GameState, Directions
 
 TEST_SET_SIZE = 100
 DIGIT_DATUM_WIDTH=28
@@ -64,6 +64,27 @@ def basicFeatureExtractorFace(datum):
                 features[(x,y)] = 0
     return features
 
+
+def helper(datum, cur_x, cur_y, visited):
+    """
+    DFS over given datum starting from cur_x and cur_y
+    """
+
+    # out of bound
+    if cur_x < 0 or cur_x >= DIGIT_DATUM_WIDTH or \
+        cur_y < 0 or cur_y >= DIGIT_DATUM_HEIGHT:
+        return False
+
+    # visited or non-connected
+    if (cur_x, cur_y) in visited or datum.getPixel(cur_x, cur_y) == 1 or datum.getPixel(cur_x, cur_y) == 2:
+        visited.add( (cur_x, cur_y) )
+        return True
+
+    visited.add((cur_x, cur_y))
+    return helper(datum, cur_x - 1, cur_y, visited) and helper(datum, cur_x, cur_y + 1, visited) \
+           and helper(datum, cur_x, cur_y - 1, visited) and helper(datum, cur_x + 1, cur_y, visited)
+
+
 def enhancedFeatureExtractorDigit(datum):
     """
     Your feature extraction playground.
@@ -72,14 +93,22 @@ def enhancedFeatureExtractorDigit(datum):
     for this datum (datum is of type samples.Datum).
 
     ## DESCRIBE YOUR ENHANCED FEATURES HERE...
-
+        1. Basic detection from pre-defined basicFeatureExtractor
+        2. test whether it has a circle inside
     ##
     """
-    features =  basicFeatureExtractorDigit(datum)
+    features = basicFeatureExtractorDigit(datum)
 
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    has_circle = False
+    for x in range(DIGIT_DATUM_WIDTH):
+        for y in range(DIGIT_DATUM_HEIGHT):
+            visited = set()
+            if datum.getPixel(x, y) == 0:
+                if helper(datum, x, y, visited):
+                    has_circle = True
+            visited.add((x, y))
 
+    features["Has a circle inside"] = has_circle
     return features
 
 
@@ -123,8 +152,38 @@ def enhancedPacmanFeatures(state, action):
     It should return a counter with { <feature name> : <feature value>, ... }
     """
     features = util.Counter()
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+
+    features["STOP"] = int(action == Directions.STOP) * 50  # extract stop feature
+    features["WIN"] = state.isWin() # extract win feature
+    features["LOSE"] = state.isLose()   #extract lose feature
+    features["SCORE"] = state.getScore() * 10   # static evaul score
+
+    successor = state.generateSuccessor(0, action)
+
+    ghost_position = successor.getGhostPositions()
+    food_state = state.getFood()
+    my_pos = successor.getPacmanPosition()
+    bound = successor.getCapsules()
+
+    food = [(x, y) for x, row in enumerate(food_state) for y, food in enumerate(row) if food]
+
+    # take in consider of ghost
+    closest_ghosts = sorted([util.manhattanDistance(my_pos, i) for i in ghost_position])
+    features["CLOSEST"] = closest_ghosts[0] * 1.0
+    for i in range(min(len(closest_ghosts), 1)):
+        features[("GHOST", i)] = 5 / (0.1 + closest_ghosts[i])
+
+    # take in consider of food
+    closest_food = sorted([util.manhattanDistance(my_pos, i) for i in food])
+    for i, weight in zip(range(min(len(closest_food), 5)), [4, 1]):
+        features[("FOOD", i)] = weight * closest_food[i]
+
+    # take in consider of bound
+    closest_caps = sorted([util.manhattanDistance(my_pos, i) for i in bound])
+    for i in range(min(len(closest_caps), 1)):
+        features[("BOUND", i)] = 15 / (1 + closest_caps[i])
+    features["BOUND COUNT"] = len(bound) * 10
+
     return features
 
 
